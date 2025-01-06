@@ -19,8 +19,13 @@ echo "OpenSUSE systems are not supported with this OpenStack Deployment!"
 exit
 fi
 
+if [[ "$(uname)" == "Darwin" ]]; then
+    echo "This script does not support installing OpenStack on MacOS."
+    exit
+fi
+
 if [ ! -f "/etc/debian_version" ]; then
-   echo "OpenStack distribution with this utility is only supported in Debian-based distros, and not in RHEL, OpenSUSE distros or MacOS"
+   echo "OpenStack distribution with this utility is only supported in Debian-based distros, and not in RHEL, OpenSUSE distros"
    exit
 fi
 
