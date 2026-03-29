@@ -116,9 +116,9 @@ SECRET_KEY = secret_key.generate_or_read_from_file('/var/lib/openstack-dashboard
 
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
+        'BACKEND': 'django.core.cache.backends.memcached.PyMemcacheCache',
         'LOCATION': '127.0.0.1:11211',
-    },
+    }
 }
 
 #CACHES = {
@@ -417,11 +417,10 @@ WEBROOT='/dashboard/'
 # By default, validation of the HTTP Host header is disabled.  Production
 # installations should have this set accordingly.  For more information
 # see https://docs.djangoproject.com/en/dev/ref/settings/.
-ALLOWED_HOSTS = '*'
+ALLOWED_HOSTS = ['*']
 
 # Compress all assets offline as part of packaging installation
 COMPRESS_OFFLINE = False
-
 EOF
 
 rm -f $openstack_dashboard_conf 2>/dev/null
@@ -442,7 +441,6 @@ Alias /dashboard/static /var/lib/openstack-dashboard/static/
 <Directory /var/lib/openstack-dashboard/static>
   Require all granted
 </Directory>
-
 EOF
 
 systemctl restart apache2
