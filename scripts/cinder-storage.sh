@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Configure the Block Storage service (Cinder) (Storage Node)
+
 set -o xtrace
 set -e
 
