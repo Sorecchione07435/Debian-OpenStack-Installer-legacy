@@ -15,17 +15,48 @@ conf_nova=/etc/nova/nova.conf
 
 install_pkgs(){
 
-if  [ $NEUTRON_ML2_MECHANISM_TYPE == "linuxbridge" ]; then
+apt install -y neutron-server neutron-plugin-ml2 neutron-openvswitch-agent \
+        neutron-dhcp-agent neutron-metadata-agent openvswitch-switch
 
-apt install neutron-server neutron-plugin-ml2 neutron-linuxbridge-agent neutron-dhcp-agent neutron-metadata-agent -y
+}
 
-fi
+conf_openvswitch_bridges(){
 
-if  [ $NEUTRON_ML2_MECHANISM_TYPE == "openvswitch" ]; then
+    NETPLAN_FILE=/etc/netplan/99-openstack.yaml
 
-apt install neutron-server neutron-plugin-ml2 neutron-openvswitch-agent neutron-dhcp-agent neutron-metadata-agent -y
+    ip addr flush dev $PUBLIC_BRIDGE_INTERFACE || true
 
-fi
+    ovs-vsctl add-br $PUBLIC_BRIDGE || true
+    ovs-vsctl add-port $PUBLIC_BRIDGE $PUBLIC_BRIDGE_INTERFACE || true
+
+    ip link set $PUBLIC_BRIDGE up
+    ip addr add $PUBLIC_SUBNET_CIDR dev $PUBLIC_BRIDGE || true
+
+    ovs-vsctl add-br $INTERNAL_BRIDGE || true
+    ip link set $INTERNAL_BRIDGE up
+      
+    if [ ! -f "$NETPLAN_FILE" ]; then
+        cat << EOF > "$NETPLAN_FILE"
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    $PUBLIC_BRIDGE_INTERFACE:
+      dhcp4: no
+  bridges:
+    $PUBLIC_BRIDGE:
+      interfaces: [$PUBLIC_BRIDGE_INTERFACE]
+      addresses: [$HOST_IP/24]
+      gateway4: $PUBLIC_SUBNET_GATEWAY
+      nameservers:
+        addresses: [$PUBLIC_SUBNET_DNS_SERVERS]
+    $INTERNAL_BRIDGE:
+      interfaces: []
+EOF
+    fi
+
+    netplan apply
+
 }
 
 conf_neutron()
@@ -66,13 +97,13 @@ crudini --set $conf_ml2 ml2 type_drivers flat,vlan,vxlan,local
 crudini --set $conf_ml2 ml2 tenant_network_types flat,vlan,local
 
 crudini --set $conf_ml2 ml2 extension_drivers port_security
-crudini --set $conf_ml2 ml2_type_flat flat_networks $HOST_IP_INTERFACE_NAME
+crudini --set $conf_ml2 ml2_type_flat flat_networks public,internal
 crudini --set $conf_ml2 securitygroup enable_ipset true
 
-if  [ $NEUTRON_ML2_MECHANISM_TYPE == "openvswitch" ]; then
 crudini --set $conf_ml2 ml2 mechanism_drivers openvswitch
 
-crudini --set $conf_openvswitch ovs bridge_mappings provider:$HOST_IP_INTERFACE_NAME
+crudini --set $conf_openvswitch ovs integration_bridge br-int
+crudini --set $conf_openvswitch ovs bridge_mappings public:$PUBLIC_BRIDGE,internal:$INTERNAL_BRIDGE
 crudini --set $conf_openvswitch securitygroup enable_security_group true
 crudini --set $conf_openvswitch firewall_driver openvswitch
 
@@ -80,22 +111,6 @@ crudini --set $conf_dhcp_agent DEFAULT interface_driver openvswitch
 crudini --set $conf_dhcp_agent DEFAULT dhcp_driver neutron.agent.linux.dhcp.Dnsmasq
 crudini --set $conf_dhcp_agent DEFAULT enable_isolated_metadata true
 
-fi
-
-if  [ $NEUTRON_ML2_MECHANISM_TYPE == "linuxbridge" ]; then
-
-crudini --set $conf_ml2 ml2 mechanism_drivers linuxbridge
-
-crudini --set $conf_linuxbridge linux_bridge physical_interface_mappings provider:$HOST_IP_INTERFACE_NAME
-crudini --set $conf_linuxbridge vxlan enable_vxlan false
-crudini --set $conf_linuxbridge securitygroup enable_security_group true
-crudini --set $conf_linuxbridge firewall_driver neutron.agent.linux.iptables_firewall.IptablesFirewallDriver
-
-crudini --set $conf_dhcp_agent DEFAULT interface_driver linuxbridge
-crudini --set $conf_dhcp_agent DEFAULT dhcp_driver neutron.agent.linux.dhcp.Dnsmasq
-crudini --set $conf_dhcp_agent DEFAULT enable_isolated_metadata true
-
-fi
 
 crudini --set $conf_metadata_agent DEFAULT nova_metadata_host $HOST_IP
 crudini --set $conf_metadata_agent DEFAULT metadata_proxy_shared_secret $SERVICE_PASSWORD
@@ -115,48 +130,50 @@ su -s /bin/sh -c "neutron-db-manage --config-file /etc/neutron/neutron.conf --co
 
 systemctl restart nova-api
 
-if  [ $NEUTRON_ML2_MECHANISM_TYPE == "openvswitch" ]; then
 systemctl restart neutron-server neutron-openvswitch-agent neutron-dhcp-agent neutron-metadata-agent nova-compute
-fi
-
-if  [ $NEUTRON_ML2_MECHANISM_TYPE == "linuxbridge" ]; then
-systemctl restart neutron-server neutron-linuxbridge-agent neutron-dhcp-agent neutron-metadata-agent nova-compute
-fi
 
 }
 
-create_public_network(){
+create_networks(){
 
-export OS_USERNAME=admin
-export OS_PASSWORD=$ADMIN_PASSWORD
-export OS_PROJECT_NAME=admin
-export OS_USER_DOMAIN_NAME=Default
-export OS_PROJECT_DOMAIN_NAME=Default
-export OS_AUTH_URL=http://$HOST_IP:5000/v3
-export OS_IDENTITY_API_VERSION=3
+  export OS_USERNAME=admin
+  export OS_PASSWORD=$ADMIN_PASSWORD
+  export OS_PROJECT_NAME=admin
+  export OS_USER_DOMAIN_NAME=Default
+  export OS_PROJECT_DOMAIN_NAME=Default
+  export OS_AUTH_URL=http://$HOST_IP:5000/v3
+  export OS_IDENTITY_API_VERSION=3
 
-openstack network create --share --external public
+    openstack network create --share --external \
+        --provider-physical-network public \
+        --provider-network-type flat public || true
 
-openstack subnet create --network public \
-  --allocation-pool start=$PUBLIC_SUBNET_RANGE_START,end=$PUBLIC_SUBNET_RANGE_END \
-  --dns-nameserver $PUBLIC_SUBNET_DNS_SERVERS --gateway $PUBLIC_SUBNET_GATEWAY \
-  --subnet-range $PUBLIC_SUBNET_CIDR public_subnet
+    openstack subnet create --network public \
+        --allocation-pool start=$PUBLIC_SUBNET_RANGE_START,end=$PUBLIC_SUBNET_RANGE_END \
+        --dns-nameserver $PUBLIC_SUBNET_DNS_SERVERS \
+        --gateway $PUBLIC_SUBNET_GATEWAY \
+        --subnet-range $PUBLIC_SUBNET_CIDR \
+        public_subnet || true
 
+    openstack network create --share --provider-physical-network internal --provider-network-type flat internal 
+
+    openstack subnet create --network internal \
+        --subnet-range 10.0.0.0/24 \
+        --gateway 10.0.0.1 \
+        --allocation-pool start=10.0.0.10,end=10.0.0.200 \
+        --dns-nameserver 8.8.8.8 internal_subnet || true
+
+    openstack router create internal_router || true
+    openstack router set internal_router --external-gateway public || true
+    openstack router add subnet internal_router internal_subnet || true
 }
 
-create_internal_network(){
-
-openstack network create --share internal
-
-openstack subnet create --network internal --allocation-pool start=10.0.0.10,end=10.0.0.200 --dns-nameserver 8.8.8.8 --gateway 10.0.0.1 --subnet-range 10.0.0.0/24 internal_subnet
-
-}
 
 install_pkgs
+conf_openvswitch_bridges
 conf_neutron
 set +e
-create_public_network
-create_internal_network
+create_networks
 
 NORMAL=$(tput sgr0)
 YELLOW=$(tput setaf 3)

@@ -9,7 +9,7 @@ conf_file=/etc/cinder/cinder.conf
 
 install_pkgs(){
 
-apt install cinder-api cinder-scheduler -y
+apt install cinder-api cinder-scheduler cinder-volume -y
 
 }
 
@@ -19,6 +19,7 @@ crudini --set $conf_file database connection mysql+pymysql://cinder:$DATABASE_PA
 
 crudini --set $conf_file DEFAULT transport_url rabbit://openstack:$RABBITMQ_PASSWORD@$HOST_IP:5672/
 crudini --set $conf_file DEFAULT glance_api_servers http://$HOST_IP:9292
+crudini --set $conf_file DEFAULT enabled_backends lvm
 
 crudini --set $conf_file keystone_authtoken www_authenticate_uri http://$HOST_IP:5000/
 crudini --set $conf_file keystone_authtoken auth_url http://$HOST_IP:5000/
@@ -30,11 +31,19 @@ crudini --set $conf_file keystone_authtoken project_name service
 crudini --set $conf_file keystone_authtoken username cinder
 crudini --set $conf_file keystone_authtoken password $SERVICE_PASSWORD
 
+crudini --set $conf_file lvm volume_driver cinder.volume.drivers.lvm.LVMVolumeDriver
+crudini --set $conf_file lvm volume_group cinder-volumes
+crudini --set $conf_file lvm volume_backend_name LVM
+crudini --set $conf_file lvm iscsi_protocol iscsi
+crudini --set $conf_file lvm iscsi_helper tgtadm
+crudini --set $conf_file lvm volume_clear zero
+crudini --set $conf_file lvm volume_clear_size 1
+
 crudini --set $conf_file oslo_concurrency lock_path /var/lib/cinder/tmp
 
 su -s /bin/sh -c "cinder-manage db sync" cinder
 
-systemctl restart cinder-scheduler apache2
+systemctl restart cinder-scheduler cinder-volume apache2
 
 }
 
