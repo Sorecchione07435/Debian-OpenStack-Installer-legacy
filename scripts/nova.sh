@@ -36,6 +36,7 @@ crudini --set $conf keystone_authtoken password $SERVICE_PASSWORD
 crudini --set $conf vnc enabled true
 crudini --set $conf vnc server_listen $HOST_IP
 crudini --set $conf vnc server_proxyclient_address $HOST_IP
+crudini --set $conf vnc novncproxy_base_url http://$HOST_IP:6080/vnc_auto.html
 
 crudini --set $conf glance api_servers http://$HOST_IP:9292
 
