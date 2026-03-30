@@ -85,8 +85,6 @@ And finally start the OpenStack installation with:
 
 Now you will have to wait a few minutes, (depends on the timing of your machine), this will configure the following OpenStack services (Keystone, Glance, Placement, Nova, Neutron, Horizon)
 
-Cinder has finally been introduced in the installer, it will be possible to install a controller node, to configure a storage node follow https://docs.openstack.org/cinder/latest/install/cinder-storage-install-ubuntu.html
-
 After the end of the installation you will see this output:
 
 ```
