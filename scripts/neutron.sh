@@ -46,7 +46,7 @@ network:
   bridges:
     $PUBLIC_BRIDGE:
       interfaces: [$PUBLIC_BRIDGE_INTERFACE]
-      addresses: [$HOST_IP/24]
+      addresses: [$HOST_IP/$HOST_IP_CIDR]
       gateway4: $PUBLIC_SUBNET_GATEWAY
       nameservers:
         addresses: [$PUBLIC_SUBNET_DNS_SERVERS]
