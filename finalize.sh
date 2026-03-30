@@ -8,17 +8,28 @@ source openstack.conf
 
 create_networks(){
 
-openstack network create --share --external public
+   openstack network create --share --external \
+        --provider-physical-network public \
+        --provider-network-type flat public || true
 
-openstack subnet create --network public \
-  --allocation-pool start=$PUBLIC_SUBNET_RANGE_START,end=$PUBLIC_SUBNET_RANGE_END \
-  --dns-nameserver $PUBLIC_SUBNET_DNS_SERVERS --gateway $PUBLIC_SUBNET_GATEWAY \
-  --subnet-range $PUBLIC_SUBNET_CIDR public_subnet
+    openstack subnet create --network public \
+        --allocation-pool start=$PUBLIC_SUBNET_RANGE_START,end=$PUBLIC_SUBNET_RANGE_END \
+        --dns-nameserver $PUBLIC_SUBNET_DNS_SERVERS \
+        --gateway $PUBLIC_SUBNET_GATEWAY \
+        --subnet-range $PUBLIC_SUBNET_CIDR \
+        public_subnet || true
 
-openstack network create --share internal
+    openstack network create --share --provider-physical-network internal --provider-network-type flat internal 
 
-openstack subnet create --network internal --allocation-pool start=10.0.0.10,end=10.0.0.200 --dns-nameserver 8.8.8.8 --gateway 10.0.0.1 --subnet-range 10.0.0.0/24 internal_subnet
+    openstack subnet create --network internal \
+        --subnet-range 10.0.0.0/24 \
+        --gateway 10.0.0.1 \
+        --allocation-pool start=10.0.0.10,end=10.0.0.200 \
+        --dns-nameserver 8.8.8.8 internal_subnet || true
 
+    openstack router create internal_router || true
+    openstack router set internal_router --external-gateway public || true
+    openstack router add subnet internal_router internal_subnet || true
 }
 
 upload_cirros_image(){
