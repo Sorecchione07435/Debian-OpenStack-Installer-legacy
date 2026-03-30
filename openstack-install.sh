@@ -78,5 +78,25 @@ run_step "Neutron" scripts/neutron.sh
 step "Horizon"
 run_step "Horizon" scripts/horizon.sh
 
-echo "✅ OpenStack Installed"
-echo "Dashboard: http://$HOST_IP/dashboard"
+# ----------------- FINALE INSTALLAZIONE -----------------
+echo
+echo "*** OpenStack installation Successful ***"
+echo
+echo "OpenStack installation Info"
+echo "+-------------------------------------------------------------------------------------------------------------+"
+echo "|    The keystone credentials RC files are stored in the /root directory                                        |"
+echo "|    The admin password is '$ADMIN_PASSWORD'                                                                  |"
+echo "|    The demo password is '$DEMO_PASSWORD'                                                                    |"
+echo "|    Keystone is serving at http://$HOST_IP:5000/                                                             |"
+echo "|                                                                                                             |"
+echo "|    The Horizon dashboard is available at http://$HOST_IP/dashboard                                          |"
+echo "|                                                                                                             |"
+echo "|    The password for all services is '$SERVICE_PASSWORD', The password for all databases is '$DATABASE_PASSWORD' |"
+echo "+-------------------------------------------------------------------------------------------------------------+"
+echo
+echo "System Info"
+echo "+-------------------------------------------------------------------------------------------------------------+"
+echo "|    Linux Distro: $NAME                                                                                      |"
+echo "|    Version: $VERSION $VERSION_CODENAME                                                                      |"
+echo "+-------------------------------------------------------------------------------------------------------------+"
+exit 0
