@@ -8,15 +8,15 @@ source openstack.conf
 conf_file=/etc/neutron/neutron.conf
 conf_ml2=/etc/neutron/plugins/ml2/ml2_conf.ini
 conf_openvswitch=/etc/neutron/plugins/ml2/openvswitch_agent.ini
-conf_linuxbridge=/etc/neutron/plugins/ml2/linuxbridge_agent.ini
 conf_dhcp_agent=/etc/neutron/dhcp_agent.ini
 conf_metadata_agent=/etc/neutron/metadata_agent.ini
+conf_l3_agent=/etc/neutron/l3_agent.ini
 conf_nova=/etc/nova/nova.conf
 
 install_pkgs(){
 
 apt install -y neutron-server neutron-plugin-ml2 neutron-openvswitch-agent \
-        neutron-dhcp-agent neutron-metadata-agent openvswitch-switch
+        neutron-dhcp-agent neutron-metadata-agent neutron-l3-agent openvswitch-switch
 
 }
 
@@ -115,6 +115,11 @@ crudini --set $conf_dhcp_agent DEFAULT enable_isolated_metadata true
 crudini --set $conf_metadata_agent DEFAULT nova_metadata_host $HOST_IP
 crudini --set $conf_metadata_agent DEFAULT metadata_proxy_shared_secret $SERVICE_PASSWORD
 
+crudini --set $conf_l3_agent DEFAULT interface_driver neutron.agent.linux.interface.OVSInterfaceDriver
+crudini --set $conf_l3_agent DEFAULT external_network_bridge ""
+crudini --set $conf_l3_agent DEFAULT use_namespaces true
+crudini --set $conf_l3_agent DEFAULT debug true
+
 crudini --set $conf_nova neutron auth_url http://$HOST_IP:5000
 crudini --set $conf_nova neutron auth_type password
 crudini --set $conf_nova neutron project_domain_name default
@@ -130,7 +135,7 @@ su -s /bin/sh -c "neutron-db-manage --config-file /etc/neutron/neutron.conf --co
 
 systemctl restart nova-api
 
-systemctl restart neutron-server neutron-openvswitch-agent neutron-dhcp-agent neutron-metadata-agent nova-compute
+systemctl restart neutron-server neutron-openvswitch-agent neutron-dhcp-agent neutron-metadata-agent neutron-l3-agent nova-compute
 
 }
 
