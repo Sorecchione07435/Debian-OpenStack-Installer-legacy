@@ -7,6 +7,26 @@ set -e
 source openstack.conf
 conf_file=/etc/cinder/cinder.conf
 
+exec_with_retry () {
+    local MAX_RETRIES=$1
+    local INTERVAL=$2
+
+    local COUNTER=0
+    while [ $COUNTER -lt $MAX_RETRIES ]; do
+        local EXIT=0
+        eval '${@:3}' || EXIT=$?
+        if [ $EXIT -eq 0 ]; then
+            return 0
+        fi
+        let COUNTER=COUNTER+1
+
+        if [ -n "$INTERVAL" ]; then
+            sleep $INTERVAL
+        fi
+    done
+    return $EXIT
+}
+
 install_pkgs(){
 
 apt install cinder-api cinder-scheduler cinder-volume -y
@@ -43,7 +63,7 @@ crudini --set $conf_file oslo_concurrency lock_path /var/lib/cinder/tmp
 
 su -s /bin/sh -c "cinder-manage db sync" cinder
 
-systemctl restart cinder-scheduler cinder-volume apache2
+exec_with_retry 5 0 systemctl restart cinder-scheduler cinder-volume apache2
 
 }
 
