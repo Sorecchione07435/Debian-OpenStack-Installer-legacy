@@ -13,6 +13,27 @@ conf_metadata_agent=/etc/neutron/metadata_agent.ini
 conf_l3_agent=/etc/neutron/l3_agent.ini
 conf_nova=/etc/nova/nova.conf
 
+exec_with_retry () {
+    local MAX_RETRIES=$1
+    local INTERVAL=$2
+
+    local COUNTER=0
+    while [ $COUNTER -lt $MAX_RETRIES ]; do
+        local EXIT=0
+        eval '${@:3}' || EXIT=$?
+        if [ $EXIT -eq 0 ]; then
+            return 0
+        fi
+        let COUNTER=COUNTER+1
+
+        if [ -n "$INTERVAL" ]; then
+            sleep $INTERVAL
+        fi
+    done
+    return $EXIT
+}
+
+
 install_pkgs(){
 
 apt install -y neutron-server neutron-plugin-ml2 neutron-openvswitch-agent \
@@ -133,9 +154,9 @@ crudini --set $conf_nova neutron metadata_proxy_shared_secret $SERVICE_PASSWORD
 
 su -s /bin/sh -c "neutron-db-manage --config-file /etc/neutron/neutron.conf --config-file /etc/neutron/plugins/ml2/ml2_conf.ini upgrade head" neutron
 
-systemctl restart nova-api
+exec_with_retry 5 0 systemctl restart nova-api
 
-systemctl restart neutron-server neutron-openvswitch-agent neutron-dhcp-agent neutron-metadata-agent neutron-l3-agent nova-compute
+exec_with_retry 5 0 systemctl restart neutron-server neutron-openvswitch-agent neutron-dhcp-agent neutron-metadata-agent neutron-l3-agent nova-compute
 
 }
 
