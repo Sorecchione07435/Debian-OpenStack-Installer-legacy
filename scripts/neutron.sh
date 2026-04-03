@@ -45,6 +45,16 @@ install_pkgs() {
 conf_openvswitch_bridges() {
     INTERFACES_FILE=/etc/network/interfaces.d/openvswitch
 
+    ip addr flush dev $PUBLIC_BRIDGE_INTERFACE
+    ip link set $PUBLIC_BRIDGE_INTERFACE down
+    ovs-vsctl del-br $PUBLIC_BRIDGE || true
+
+    ovs-vsctl add-br $PUBLIC_BRIDGE
+    ovs-vsctl add-port $PUBLIC_BRIDGE $PUBLIC_BRIDGE_INTERFACE
+    ip link set $PUBLIC_BRIDGE up
+    ip addr add $HOST_IP/$HOST_IP_CIDR dev $PUBLIC_BRIDGE
+    ip route add default via $PUBLIC_SUBNET_GATEWAY
+
     # Create OVS bridges via interfaces file
     if [ ! -f "$INTERFACES_FILE" ]; then
         cat << EOF > "$INTERFACES_FILE"
