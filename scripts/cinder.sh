@@ -63,7 +63,7 @@ crudini --set $conf_file oslo_concurrency lock_path /var/lib/cinder/tmp
 
 su -s /bin/sh -c "cinder-manage db sync" cinder
 
-exec_with_retry 50 0 systemctl restart cinder-scheduler cinder-volume apache2
+exec_with_retry 15 0 systemctl restart cinder-scheduler cinder-volume apache2
 
 }
 
