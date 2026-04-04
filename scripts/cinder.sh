@@ -10,17 +10,15 @@ conf_file=/etc/cinder/cinder.conf
 exec_with_retry () {
     local MAX_RETRIES=$1
     local INTERVAL=$2
-
     local COUNTER=0
     while [ $COUNTER -lt $MAX_RETRIES ]; do
         local EXIT=0
-        eval '${@:3}' || EXIT=$?
+        "${@:3}" || EXIT=$?
         if [ $EXIT -eq 0 ]; then
             return 0
         fi
-        let COUNTER=COUNTER+1
-
-        if [ -n "$INTERVAL" ]; then
+        COUNTER=$((COUNTER + 1))
+        if [ -n "$INTERVAL" ] && [ "$INTERVAL" -gt 0 ]; then
             sleep $INTERVAL
         fi
     done
@@ -29,7 +27,7 @@ exec_with_retry () {
 
 install_pkgs(){
 
-apt install cinder-api cinder-scheduler cinder-volume -y
+apt install cinder-api cinder-scheduler -y
 
 }
 
@@ -63,7 +61,7 @@ crudini --set $conf_file oslo_concurrency lock_path /var/lib/cinder/tmp
 
 su -s /bin/sh -c "cinder-manage db sync" cinder
 
-exec_with_retry 15 0 systemctl restart cinder-scheduler cinder-volume apache2
+exec_with_retry 15 3 systemctl restart cinder-scheduler cinder-volume apache2
 
 }
 

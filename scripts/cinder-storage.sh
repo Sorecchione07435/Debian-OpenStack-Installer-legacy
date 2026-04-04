@@ -8,6 +8,25 @@ source openstack.conf
 
 VG_NAME="cinder-volumes"
 
+exec_with_retry () {
+    local MAX_RETRIES=$1
+    local INTERVAL=$2
+    local COUNTER=0
+    while [ $COUNTER -lt $MAX_RETRIES ]; do
+        local EXIT=0
+        "${@:3}" || EXIT=$?
+        if [ $EXIT -eq 0 ]; then
+            return 0
+        fi
+        COUNTER=$((COUNTER + 1))
+        if [ -n "$INTERVAL" ] && [ "$INTERVAL" -gt 0 ]; then
+            sleep $INTERVAL
+        fi
+    done
+    return $EXIT
+}
+
+
 install_pkgs(){
     apt install -y cinder-volume
 }
@@ -48,7 +67,7 @@ setup_lvm(){
 }
 
 finalize(){
-    systemctl restart cinder-volume apache2
+    exec_with_retry 15 3 systemctl restart cinder-volume apache2
 }
 
 install_pkgs
