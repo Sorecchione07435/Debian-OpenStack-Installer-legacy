@@ -86,7 +86,6 @@ iface $PUBLIC_BRIDGE inet static
     pre-up ip link set $PUBLIC_BRIDGE_INTERFACE up
     post-down ovs-vsctl --if-exists del-br $PUBLIC_BRIDGE
 
-# Internal OVS bridge (no IP)
 auto $INTERNAL_BRIDGE
 iface $INTERNAL_BRIDGE inet manual
     pre-up ovs-vsctl --may-exist add-br $INTERNAL_BRIDGE
@@ -98,8 +97,7 @@ EOF
     for f in /etc/network/interfaces.d/*; do
         [[ "$f" != "$INTERFACES_FILE" ]] && mv "$f" /root/net-backup/ 2>/dev/null || true
     done
-
-    # Ricrea i bridge subito per la sessione corrente
+    
     ovs-vsctl --may-exist add-br $PUBLIC_BRIDGE
     ovs-vsctl --may-exist add-port $PUBLIC_BRIDGE "$PUBLIC_BRIDGE_INTERFACE"
     ip link set "$PUBLIC_BRIDGE_INTERFACE" up
