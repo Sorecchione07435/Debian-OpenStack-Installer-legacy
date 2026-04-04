@@ -1,117 +1,186 @@
 # Debian OpenStack Installer
-### A Devstack alternative to install an OpenStack test environment on Debian in a short time
 
-After much effort, here it is, Debian OpenStack Installer is a series of SH scripts that allows the distribution of a minimal OpenStack environment in Debian distros
-It allows you to independently install OpenStack in a single node
+### A Devstack alternative to quickly deploy a test OpenStack environment on Debian-based distributions
 
-Each SH script configures a single service 
+Debian OpenStack Installer is a set of SH scripts that allows deploying a minimal OpenStack environment on Debian-based systems.
+It can install OpenStack **on a single node**, automatically configuring the core services.
 
-Before using this little Utility we would need the requirements
+Each script is responsible for configuring a single service.
 
-### Supported Distros:
-- Ubuntu
-- Pop! OS
-- Q4OS
-- SparkyLinux
-- Zorin OS
-- Kali Linux
-- Linux Mint
-- Elementary OS
-- Any Distro that is based on Debian and has Python3+ support
+---
+
+## Requirements
+
+### Supported Distros
+
+* Ubuntu
+* Pop!_OS
+* Q4OS
+* SparkyLinux
+* Zorin OS
+* Kali Linux
+* Linux Mint
+* Elementary OS
+* Any Debian-based distro with Python3+
 
 ### Unsupported Distros
-- CentOS
-- Fedora
-- OpenSUSE
-- Any distro that is not based on Debian but on Red Hat or OpenSUSE
-(in Red Hat there is another deployment tool Packstack)
+
+* CentOS
+* Fedora
+* OpenSUSE
+* Any non-Debian-based distro
+
+---
 
 ### Minimum requirements
-- Distro: Any Debian-based distro
-- RAM: 4 GB RAM
-- CPUs: 2
-- Hard Disk Capacity: 10GB
 
-### Recommended Requirements
-- Distro: Any Debian-based distro
-- RAM: 8 GB RAM
-- CPUs: 4
-- Hard Disk Capacity: 20GB
+* RAM: 4 GB
+* CPU: 2 cores
+* Storage: 10 GB
 
-Well, after taking a little look at the requirements for this utility we can now move on to the installation
+### Recommended requirements
 
-## OpenStack Installation Steps
+* RAM: 8 GB
+* CPU: 4 cores
+* Storage: 20 GB
 
-Install any Debian distro (I recommend the classic Ubuntu distro) on a virtual machine or on a physical machine, the distro must be clean
+---
 
-First of all update all the packages on your system
+## Important Note
+
+**This installer does not support Netplan.**
+You must use `ifupdown` to properly configure networking and Open vSwitch (OVS) bridges for Neutron.
+
+---
+
+## Disable Netplan and enable ifupdown
+
+```bash
+# Remove Netplan
+apt remove netplan.io -y
+
+# Install ifupdown
+apt install ifupdown -y
+
+# Stop systemd network manager
+systemctl disable systemd-networkd
+systemctl stop systemd-networkd
+
+# Backup Netplan configuration files
+mv /etc/netplan/*.yaml /etc/netplan/*.yaml.bak
 ```
+
+### Configure a static IP for your host's public interface
+
+Replace `YOUR_PUBLIC_INTERFACE` with your real interface name (e.g., ens33).
+Replace `<HOST_IP>`, `<HOST_NETMASK>`, and `<HOST_GATEWAY>` with the correct values for your network.
+
+```bash
+cat << EOF > /etc/network/interfaces.d/network
+auto lo
+iface lo inet loopback
+
+auto YOUR_PUBLIC_INTERFACE
+iface YOUR_PUBLIC_INTERFACE inet static
+    address <HOST_IP>
+    netmask <HOST_NETMASK>
+    gateway <HOST_GATEWAY>
+    dns-nameservers 8.8.8.8 1.1.1.1
+EOF
+
+# Restart networking
+systemctl restart networking
+```
+
+---
+
+## OpenStack Installation
+
+1. Update the system:
+
+```bash
 sudo su
 apt update -y && apt upgrade -y
 ```
 
-Install git if it isn't already installed:
-```
+2. Install Git (if not already installed):
+
+```bash
 apt install git -y
 ```
 
-Now proceed to clone the Debian OpenStack Installer repo
-```
+3. Clone the repository:
+
+```bash
 cd /root
 git clone https://github.com/Sorecchione07435/Debian-OpenStack-Installer.git
-```
-
-Now enter the following folder
-```
 cd Debian-OpenStack-Installer/
 ```
 
-And before starting the OpenStack installation you first need to edit a small configuration file, open the file with nano: ```openstack.conf```
-and fill in all the fields:
+4. Configure `openstack.conf`:
 
-Specifying the values for the public network, for its subnet, also entering the IP address of your machine and the passwords for the administrator, demo user, all services, databases, and RabbitMQ and the OpenStack release
+* Set your public interface (`YOUR_PUBLIC_INTERFACE`)
+* Enter host IP, netmask, and gateway
+* Enter passwords for admin, demo, services, databases, and RabbitMQ
+* Select the OpenStack release
 
-After making your configuration, save the file
+5. Make the main script executable:
 
-Now give yourself permission to run the main script:
-```
+```bash
 chmod +x openstack-install.sh
 ```
 
-And finally start the OpenStack installation with:
-```
+6. Run the installation:
+
+```bash
 ./openstack-install.sh
 ```
 
-Now you will have to wait a few minutes, (depends on the timing of your machine), this will configure the following OpenStack services (Keystone, Glance, Placement, Nova, Neutron, Horizon)
+> Installation may take a few minutes depending on your machine.
 
-After the end of the installation you will see this output:
+---
 
+## Installed Services
+
+* Keystone
+* Glance
+* Cinder (Optional)
+* Placement
+* Nova
+* Neutron (with OVS bridges configured)
+* Horizon
+
+---
+
+## Access OpenStack
+
+After installation:
+
+* Horizon Dashboard: `http://<HOST_IP>/dashboard`
+* Admin username: as configured in `openstack.conf`
+* Admin password: as configured in `openstack.conf`
+
+---
+
+## Networks and Images
+
+If the public or internal networks are not created correctly, or the Cirros image is missing, you can run:
+
+```bash
+./finalize.sh
 ```
-*** OpenStack installation Successful ***
 
-OpenStack installation Info
-+-------------------------------------------------------------------------------------------------------------+
-|	The keystone credentials RC files are stored in the /root directory										
-|	The admin password is 'ADMIN_PASSWORD'														
-|	The demo password is 'DEMO_PASSWORD'															
-|	Keystone is serving at http://HOST_IP:5000/												
-|																			
-|	The Horizon dashboard is available at http://HOST_IP/dashboard										
-|																			
-|	The password for all services is 'SERVICE_PASSWORD', The password for all databases is 'DATABASE_PASSWORD'	
-+-------------------------------------------------------------------------------------------------------------+
+---
 
-System Info
-+-------------------------------------------------------------------------------------------------------------+
-|	Linux Distro: Ubuntu																
-|	Version: 22.04 jammy 																														
-+-------------------------------------------------------------------------------------------------------------+
-```
+## Limitations
 
-If during installation you noticed that the public network or internal network was not created due to a temporary neutron endpoint failure you can run the ```finalize.sh``` script, in order to create the missing networks or the missing cirros image
+* This is **a test environment**; not for production use.
+* Network connectivity may not always be fully stable for complex scenarios.
+* Requires `ifupdown` and **does not support Netplan**.
+* OVS bridges are created for the host’s public interface; always replace `YOUR_PUBLIC_INTERFACE` with your real interface.
 
-Now your OpenStack installation will be ready to use, You can access the Horizon dashboard from: http://yourip/dashboard, the user is 'admin' and the password is the one you entered on the ADMIN_PASSWORD directive and you will be able to make experimental use of it, launching instances, uploading new images etc., the network will not work 100%
+---
 
-**Please remember that this will not be a fully functional OpenStack installation**
+## Conclusion
 
+Once installation is complete, you can create instances, upload images, and experiment with OpenStack services.
