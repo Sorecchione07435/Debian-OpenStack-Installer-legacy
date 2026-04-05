@@ -6,7 +6,6 @@ set -e
 
 source openstack.conf
 
-# Config files
 conf_file=/etc/neutron/neutron.conf
 conf_ml2=/etc/neutron/plugins/ml2/ml2_conf.ini
 conf_openvswitch=/etc/neutron/plugins/ml2/openvswitch_agent.ini
