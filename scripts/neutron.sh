@@ -65,7 +65,6 @@ conf_openvswitch_bridges() {
 auto lo
 iface lo inet loopback
 
-# Interfaccia fisica: nessun IP, porta del bridge OVS
 auto $PUBLIC_BRIDGE_INTERFACE
 iface $PUBLIC_BRIDGE_INTERFACE inet manual
     pre-up ovs-vsctl --may-exist add-br $PUBLIC_BRIDGE
@@ -73,7 +72,6 @@ iface $PUBLIC_BRIDGE_INTERFACE inet manual
     up ip link set $PUBLIC_BRIDGE_INTERFACE up
     down ip link set $PUBLIC_BRIDGE_INTERFACE down
 
-# Public OVS bridge: tiene l'IP dell'host
 auto $PUBLIC_BRIDGE
 iface $PUBLIC_BRIDGE inet static
     address $HOST_IP
