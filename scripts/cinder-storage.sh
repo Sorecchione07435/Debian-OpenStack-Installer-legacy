@@ -6,6 +6,7 @@ set -e
 
 source openstack.conf
 
+LOOP_DEV="/dev/${CINDER_VOLUME_LVM_PHYSICAL_PV_LOOP_PATH}"
 VG_NAME="cinder-volumes"
 
 exec_with_retry () {
@@ -28,15 +29,18 @@ exec_with_retry () {
 
 
 install_pkgs(){
-    apt install -y cinder-volume
+    apt install -y cinder-volume tgt
 }
 
 setup_lvm(){
 
+    LOOP_DEV="${CINDER_VOLUME_LVM_PHYSICAL_PV_LOOP_NAME}"
+    VG_NAME="cinder-volumes"
+
     mkdir -p /var/lib/cinder/images
 
     if [ ! -f "$CINDER_VOLUME_LVM_IMAGE_FILE_PATH" ]; then
-        #dd if=/dev/zero of="$CINDER_VOLUME_LVM_IMAGE_FILE_PATH" bs=1G count=$CINDER_VOLUME_LVM_IMAGE_SIZE_IN_GB
+        # Creazione immagine LVM
         fallocate -l ${CINDER_VOLUME_LVM_IMAGE_SIZE_IN_GB}G "$CINDER_VOLUME_LVM_IMAGE_FILE_PATH"
 
         id -u cinder &>/dev/null || useradd -r -s /bin/false cinder
@@ -44,34 +48,70 @@ setup_lvm(){
 
         chown cinder:cinder "$CINDER_VOLUME_LVM_IMAGE_FILE_PATH"
         chmod 600 "$CINDER_VOLUME_LVM_IMAGE_FILE_PATH"
-    fi 
-
-    if losetup -a | grep -q "$CINDER_VOLUME_LVM_IMAGE_FILE_PATH"; then
-        LOOP_DEV=$(losetup -a | grep "$CINDER_VOLUME_LVM_IMAGE_FILE_PATH" | cut -d: -f1)
-    else
-        LOOP_DEV=$(losetup -f --show "$CINDER_VOLUME_LVM_IMAGE_FILE_PATH")
     fi
 
+    # Associa il loop device specificato
+    if ! losetup "$LOOP_DEV" &>/dev/null; then
+        losetup "$LOOP_DEV" "$CINDER_VOLUME_LVM_IMAGE_FILE_PATH"
+    fi
+
+    # LVM
     if ! pvs | grep -q "$LOOP_DEV"; then
-        pvcreate $LOOP_DEV
+        pvcreate "$LOOP_DEV"
     fi
 
     if ! vgs | grep -q "$VG_NAME"; then
-        vgcreate $VG_NAME $LOOP_DEV
+        vgcreate "$VG_NAME" "$LOOP_DEV"
     fi
+}
 
-    if ! grep -q "$CINDER_VOLUME_LVM_IMAGE_FILE_PATH" /etc/fstab; then
-        echo "$CINDER_VOLUME_LVM_IMAGE_FILE_PATH none loop defaults 0 0" >> /etc/fstab
-    fi
+setup_iscsi(){
+
+    echo 'include /var/lib/cinder/volumes/*' > /etc/tgt/conf.d/cinder.conf
 
 }
 
+setup_loopback_service(){
+cat > /etc/systemd/system/cinder-loopback.service << EOF
+[Unit]
+Description=Cinder LVM loopback device
+Before=cinder-volume.service tgt.service
+DefaultDependencies=no
+After=local-fs.target
+
+[Service]
+Type=oneshot
+
+ExecStart=/bin/bash -c 'if ! losetup $LOOP_DEV | grep -q cinder-volumes.img; then /sbin/losetup $LOOP_DEV $CINDER_VOLUME_LVM_IMAGE_FILE_PATH; fi'
+ExecStart=/sbin/vgchange -ay $VG_NAME
+
+ExecStop=/sbin/vgchange -an $VG_NAME
+ExecStop=/bin/bash -c 'if losetup $LOOP_DEV | grep -q cinder-volumes.img; then /sbin/losetup -d $LOOP_DEV; fi'
+
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload  
+}
+
 finalize(){
-    exec_with_retry 15 3 systemctl restart cinder-volume apache2
+    systemctl enable cinder-loopback.service
+
+    exec_with_retry 15 3 systemctl restart tgt
+    exec_with_retry 15 3 systemctl restart cinder-volume
+    
+    exec_with_retry 15 3 systemctl start cinder-loopback.service
+
+    tgtadm --mode target --op show
 }
 
 install_pkgs
 setup_lvm
+setup_iscsi
+setup_loopback_service
 finalize
 
 echo "Done!"
