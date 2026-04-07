@@ -113,7 +113,7 @@ apt install git -y
 
 ```bash
 cd /root
-git clone https://github.com/Sorecchione07435/Debian-OpenStack-Installer.git
+git clone https://github.com/Sorecchione07435/Debian-OpenStack-Installer-legacy.git
 cd Debian-OpenStack-Installer/
 ```
 
